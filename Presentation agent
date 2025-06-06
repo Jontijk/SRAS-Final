@@ -1,0 +1,46 @@
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import SlideGenerationTool
+
+# 🧠 ReAct-style prompt for slide generation
+PRESENTATION_PROMPT = """
+You are a presentation assistant that creates high-quality slide content.
+Use the ReAct pattern:
+1. Think through the topic and structure it logically.
+2. Use SlideGenerationTool to generate slide content.
+3. Finalize when all major points are covered.
+
+Use this format:
+Thought: reasoning about slide structure
+Action: {"action_type": "presentation", "input": "slide topic or content"}
+OR
+Final Answer: structured slide content
+"""
+
+# ✅ Main function to be called by orchestrator
+def run_presentation_agent(extracted_intent_presentation):
+    if not extracted_intent_presentation:
+        return "❌ No intent passed to presentation agent."
+
+    if extracted_intent_presentation.get("task") != "presentation":
+        return "⚠️ Query is not for presentation."
+
+    query = extracted_intent_presentation.get("query")
+    if not query:
+        return "❌ No query content found in extracted intent."
+
+    # 🧠 Create ReAct Agent with slide generation tool
+    agent = ReactAgent(
+        tools=[SlideGenerationTool()],
+        model=create_model(provider="openai"),
+        custom_system_prompt=PRESENTATION_PROMPT
+    )
+
+    # 🧠 Run the agent on the input query
+    result = agent.run(query)
+
+    # ✅ Return final slide content
+    return result.final_answer if hasattr(result, "final_answer") else "❌ No final answer returned by agent."
+presentation_output = run_presentation_agent(extracted_intent_presentation)
+print("\n📊 Final Slides Content:")
+print(presentation_output)
