@@ -1,0 +1,55 @@
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import YFinanceTool
+
+# 🧠 ReAct-style system prompt for finance
+FINANCE_PROMPT = """
+You are a financial research assistant. Use the ReAct method:
+1. Break down the user's query and decide which financial data is needed.
+2. Use the YFinanceTool to look up financial info.
+3. Summarize the result clearly in human-friendly language.
+
+Only use YFinanceTool for actions.
+
+Format:
+Thought: describe reasoning
+Action: {"action_type": "yfinance", "input": "ticker symbol or query"}
+OR
+Final Answer: your complete financial insight
+"""
+
+# ✅ Main function to be called by orchestrator
+def run_finance_agent(extracted_intent_finance):
+    if not extracted_intent_finance:
+        return "❌ No intent passed to finance agent."
+
+    if extracted_intent_finance.get("task") != "finance":
+        return "ℹ️ Skipping Finance Agent — task is not 'finance'."
+
+    query = extracted_intent_finance.get("query")
+    if not query:
+        return "❌ No query content found in extracted intent."
+
+    # 🧠 Create ReAct Agent with YFinance tool
+    agent = ReactAgent(
+        tools=[YFinanceTool()],
+        model=create_model(provider="openai"),
+        custom_system_prompt=FINANCE_PROMPT
+    )
+
+    # 🧠 Run the agent on the input query
+    result = agent.run(query)
+
+    # ✅ Return final financial insight
+    return result.final_answer if hasattr(result, "final_answer") else "❌ No final answer returned."
+
+
+# ✅ Optional: CLI test (only runs if file is executed directly)
+if __name__ == "__main__":
+    print("\n💸 Running Finance Agent...")
+
+    try:
+        print("\n📊 Final Answer:")
+        print(run_finance_agent(extracted_intent_finance))
+    except NameError:
+        print("❌ 'extracted_intent_finance' not defined. Run from orchestrator or pass valid input.")
