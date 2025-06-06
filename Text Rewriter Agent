@@ -1,0 +1,53 @@
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import TextRewriterTool
+
+# 🧠 ReAct-style prompt for rewriting text
+TEXT_REWRITER_PROMPT = """
+You are a rewriting and paraphrasing expert. Follow the ReAct pattern:
+
+1. Think through what the user wants to rephrase or rewrite.
+2. Consider the tone, clarity, and professionalism.
+3. Rewrite the text clearly, keeping the original meaning intact.
+
+Use this format:
+Thought: your reasoning
+Final Answer: your rewritten or paraphrased version
+"""
+
+# ✅ Text Rewriter agent function
+def run_text_rewriter_agent(extracted_intent_rewriter):
+    if not extracted_intent_rewriter:
+        return "❌ No intent passed to text rewriter agent."
+
+    if extracted_intent_rewriter.get("task") != "text_rewriting":
+        return "⚠️ Skipping Text Rewriter Agent — task is not 'text_rewriting'."
+
+    query = extracted_intent_rewriter.get("query")
+    if not query:
+        return "❌ No query content found in extracted intent."
+
+    # 🧠 Create agent (no internet tools required)
+    agent = ReactAgent(
+        tools=[],  # No external tools needed for rewriting
+        model=create_model(provider="openai"),
+        custom_system_prompt=TEXT_REWRITER_PROMPT
+    )
+
+    # 🧠 Run agent with input query
+    result = agent.run(query)
+
+    # ✅ Return final rewritten output
+    return result.final_answer if hasattr(result, "final_answer") else "❌ No final answer."
+
+
+# ✅ Optional: CLI test mode
+if __name__ == "__main__":
+    print("\n✍️ Running Text Rewriter Agent...")
+
+    try:
+        rewritten = run_text_rewriter_agent(extracted_intent_rewriter)
+        print("\n📝 Rewritten Output:")
+        print(rewritten)
+    except NameError:
+        print("❌ 'extracted_intent_text_rewrite' not defined. Run from orchestrator or pass valid input.")
