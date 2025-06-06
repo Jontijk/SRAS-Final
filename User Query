@@ -1,0 +1,119 @@
+import io
+import json
+import contextlib
+from openai import OpenAI
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import (
+    CalculateTool,
+    SlideGenerationTool,
+    YFinanceTool,
+    QuickInternetTool,
+    AresInternetTool
+)
+
+# ✅ Initialize OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# ✅ Classifier using LLM
+def classify_query(query):
+    prompt = f"""
+You are a classifier that routes user queries to the right research tool.
+
+Classify this query into one of the following tasks:
+- calculation
+- presentation
+- finance
+- summarization
+
+Only return one word from the list.
+
+Query: {query}
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    task = response.choices[0].message.content.strip().lower()
+    return {"task": task, "query": query}
+
+# ✅ ReAct explanation prompt
+ROUTER_PROMPT = """
+You are a router agent using ReAct pattern. Explain clearly your reasoning for routing the task.
+Then finalize by stating the routing outcome.
+
+Format:
+Thought: explain how you identified the task type
+Final Answer: task classification result
+"""
+
+# ✅ Tool registry (for fallback if needed)
+ALL_TOOLS = {
+    "calculation": [CalculateTool()],
+    "presentation": [SlideGenerationTool()],
+    "finance": [YFinanceTool()],
+    "summarization": [QuickInternetTool(), AresInternetTool()]
+}
+
+# ✅ Main block
+if __name__ == "__main__":
+    print("\n🧠 Smart Router Agent Active")
+    user_query = input("\n📝 Enter your research query: ")
+
+    # 🧠 Use LLM to classify user query
+    extracted_intent = classify_query(user_query)
+    task_type = extracted_intent["task"]
+
+    # 📌 Dynamically assign based on task type
+    extracted_intent_calculation = None
+    extracted_intent_presentation = None
+    extracted_intent_finance = None
+    extracted_intent_summary = None
+
+    if task_type == "calculation":
+        extracted_intent_calculation = extracted_intent
+        print("\n✅ Intent saved in variable: extracted_intent_calculation")
+    elif task_type == "presentation":
+        extracted_intent_presentation = extracted_intent
+        print("\n✅ Intent saved in variable: extracted_intent_presentation")
+    elif task_type == "finance":
+        extracted_intent_finance = extracted_intent
+        print("\n✅ Intent saved in variable: extracted_intent_finance")
+    elif task_type == "summarization":
+        extracted_intent_summary = extracted_intent
+        print("\n✅ Intent saved in variable: extracted_intent_summary")
+    else:
+        print(f"\n⚠️ Unknown task type: '{task_type}' — intent not assigned.")
+
+        # ReAct agent-style reasoning
+        router_agent = ReactAgent(
+            tools=[],
+            model=create_model(provider="openai"),
+            custom_system_prompt=ROUTER_PROMPT
+        )
+
+        explain_prompt = f"""
+Question: {user_query}
+
+Now classify this query into one of the following:
+- calculation
+- presentation
+- finance
+- summarization
+
+You already determined it is: {task_type}
+
+Now respond in the following format:
+
+Thought: explain how you identified the task type
+Final Answer: {task_type}
+""".strip()
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            explanation = router_agent.run(explain_prompt)
+
+        print("\n🧠 ReAct Router Thought:")
+        print(explanation.final_answer if hasattr(explanation, "final_answer") else buffer.getvalue())
+
+        print("\n✅ Intent classification complete. No file saved (as per updated requirement).")
