@@ -1,0 +1,54 @@
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import QuickInternetTool, AresInternetTool
+
+# 🧠 ReAct-style prompt for summarization
+SUMMARIZATION_PROMPT = """
+You are a summarization expert. Follow the ReAct pattern:
+1. Think through what the user needs summarized.
+2. Use QuickInternetTool or AresInternetTool to gather relevant data.
+3. Produce a concise and clear summary when confident.
+
+Use this format:
+Thought: your reasoning
+Action: {"action_type": "internet", "input": "query or topic"}
+OR
+Final Answer: your summary response
+"""
+
+# ✅ Summarization agent function
+def run_summarization_agent(extracted_intent_summarization):
+    if not extracted_intent_summarization:
+        return "❌ No intent passed to summarization agent."
+
+    if extracted_intent_summarization.get("task") != "summarization":
+        return "⚠️ Skipping Summarization Agent — task is not 'summarization'."
+
+    query = extracted_intent_summarization.get("query")
+    if not query:
+        return "❌ No query content found in extracted intent."
+
+    # 🧠 Create agent with both internet tools
+    agent = ReactAgent(
+        tools=[QuickInternetTool(), AresInternetTool()],
+        model=create_model(provider="openai"),
+        custom_system_prompt=SUMMARIZATION_PROMPT
+    )
+
+    # 🧠 Run agent with input query
+    result = agent.run(query)
+
+    # ✅ Return final summary
+    return result.final_answer if hasattr(result, "final_answer") else "❌ No final answer."
+
+
+# ✅ Optional: CLI test mode
+if __name__ == "__main__":
+    print("\n📚 Running Summarization Agent...")
+
+    try:
+        summary = run_summarization_agent(extracted_intent_summary)
+        print("\n📝 Summary Output:")
+        print(summary)
+    except NameError:
+        print("❌ 'extracted_intent_summarization' not defined. Run from orchestrator or pass valid input.")
