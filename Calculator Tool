@@ -1,0 +1,56 @@
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import CalculateTool
+
+# 🧠 ReAct-style system prompt for math tasks
+CALCULATION_PROMPT = """
+You are a smart calculation assistant. Use the ReAct method:
+1. Think through the math problem step-by-step.
+2. Use the Calculator tool when computation is needed.
+3. Stop when you're confident with the final result.
+
+Only use CalculatorTool for calculations.
+
+Format:
+Thought: your reasoning
+Action: {"action_type": "calculate", "input": "math expression"}
+OR
+Final Answer: your final result
+"""
+
+# ✅ Main function to be called by orchestrator
+def run_calculation_agent(extracted_intent_calculation):
+    if not extracted_intent_calculation:
+        return "❌ No intent passed to calculation agent."
+
+    if extracted_intent_calculation.get("task") != "calculation":
+        return "ℹ️ Skipping Calculation Agent — task is not 'calculation'."
+
+    query = extracted_intent_calculation.get("query")
+    if not query:
+        return "❌ No query content found in extracted intent."
+
+    # 🧠 Create ReAct Agent with calculator tool
+    agent = ReactAgent(
+        tools=[CalculateTool()],
+        model=create_model(provider="openai"),
+        custom_system_prompt=CALCULATION_PROMPT
+    )
+
+    # 🧠 Run the agent on the input query
+    result = agent.run(query)
+
+    # ✅ Return final answer
+    return result.final_answer if hasattr(result, "final_answer") else "❌ No final answer found."
+
+
+# ✅ Optional: CLI test (only if file is run directly)
+if __name__ == "__main__":
+    print("\n🧠 Running Calculation Agent...")
+
+    # ❗Make sure this variable is populated by router before testing here
+    try:
+        print("\n🧮 Final Answer:")
+        print(run_calculation_agent(extracted_intent_calculation))
+    except NameError:
+        print("❌ 'extracted_intent_calculation' not defined. Run from orchestrator or pass valid input.")
