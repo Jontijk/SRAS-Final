@@ -1,0 +1,83 @@
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+
+#from router_agent import classify_query
+#from presentation_agent import run_presentation_agent
+#from calculate_agent import run_calculation_agent
+#from finance_agent import run_finance_agent
+#from summarization_agent import run_summarization_agent
+
+# 🧠 ReAct prompt for brain decision
+BRAIN_PROMPT = """
+You are a smart brain agent that decides which specific research agent should be triggered based on a user query type.
+You must reason and then respond with the exact agent to invoke:
+- calculation
+- presentation
+- finance
+- summarization
+
+Format:
+Thought: explain the decision
+Final Answer: name of the agent to use
+"""
+
+if __name__ == "__main__":
+    print("\n🧠 Smart Brain Agent Active")
+
+    # Step 1: Get user query
+    user_query = input("\n📝 Please enter your research query: ")
+
+    # Step 2: Classify task using router logic
+    extracted_intent = classify_query(user_query)  # returns {"query": ..., "task": ...}
+    task_type = extracted_intent["task"]
+
+    print(f"\n🔎 Query classified as: {task_type}")
+
+    # Step 3: Let the brain agent reason through the decision
+    decision_prompt = f"""
+Question: {extracted_intent['query']}
+
+Query Type: {task_type}
+
+Now decide the correct agent.
+"""
+
+    brain_agent = ReactAgent(
+        tools=[],
+        model=create_model(provider="openai"),
+        custom_system_prompt=BRAIN_PROMPT
+    )
+
+    result = brain_agent.run(decision_prompt)
+    decision = result.final_answer.strip().lower()
+
+    print("\n🧠 Brain Decision:")
+    print(decision)
+
+    # Step 4: Trigger the corresponding agent
+    if decision == "calculation":
+        print("\n🚀 Launching Calculation Agent...")
+        answer = run_calculation_agent(extracted_intent)
+        print("\n🧮 Final Answer:")
+        print(answer)
+
+    elif decision == "presentation":
+        print("\n🚀 Launching Presentation Agent...")
+        answer = run_presentation_agent(extracted_intent)
+        print("\n🎥 Presentation Slides:")
+        print(answer)
+
+    elif decision == "finance":
+        print("\n🚀 Launching Finance Agent...")
+        answer = run_finance_agent(extracted_intent)
+        print("\n💰 Finance Info:")
+        print(answer)
+
+    elif decision == "summarization":
+        print("\n🚀 Launching Summarization Agent...")
+        answer = run_summarization_agent(extracted_intent)
+        print("\n📝 Summary:")
+        print(answer)
+
+    else:
+        print(f"❌ Unknown agent: '{decision}' — no action taken.")
