@@ -5,9 +5,8 @@
 
 !pip install openai requests scipy
 
-import os
-os.environ["OPENAI_API_KEY"] = "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"  # Or set it via Streamlit secrets
-
+from google.colab import userdata
+userdata.get('OpenAI')
 
 Create Project Folder Structure
 
@@ -22,8 +21,8 @@ with open("sras/ui/__init__.py", "w") as f:
 
 import os
 
-# Set your Hugging Face API key here for Colab testing
-os.environ["sras-api"] = "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"
+from google.colab import userdata
+userdata.get('sras-api')
 
 
 Tools
@@ -150,6 +149,8 @@ Final Answer: {task_type}
 
         print("\n✅ Intent classification complete. No file saved (as per updated requirement).")
 
+
+Calculator Tool
 
 from agentpro.react_agent import ReactAgent
 from agentpro.model import create_model
@@ -528,4 +529,3 @@ with gr.Blocks(theme=gr.themes.Soft(), title="🧠 Smart Research Agent Suite") 
             gr.Button("Summarize").click(fn=sum_tab_fn, inputs=sum_input, outputs=sum_output)
 
 demo.launch()
-
