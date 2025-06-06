@@ -1,0 +1,62 @@
+import gradio as gr
+#from brain_agent import run_calculation_agent, run_presentation_agent, run_finance_agent, run_summarization_agent
+#from brain_agent import classify_query  # If inline, paste the function here instead
+
+def handle_query(user_query):
+    extracted = classify_query(user_query)
+    task = extracted["task"]
+
+    if task == "calculation":
+        output = run_calculation_agent(extracted)
+    elif task == "presentation":
+        output = run_presentation_agent(extracted)
+    elif task == "finance":
+        output = run_finance_agent(extracted)
+    elif task == "summarization":
+        output = run_summarization_agent(extracted)
+    else:
+        output = "❌ Could not classify your query properly."
+
+    return f"🧠 Task Type: {task}\n\n✅ Output:\n{output}"
+
+# Individual agent tabs
+def calc_tab_fn(q): return run_calculation_agent({"task": "calculation", "query": q})
+def pres_tab_fn(q): return run_presentation_agent({"task": "presentation", "query": q})
+def fin_tab_fn(q): return run_finance_agent({"task": "finance", "query": q})
+def sum_tab_fn(q): return run_summarization_agent({"task": "summarization", "query": q})
+
+with gr.Blocks(theme=gr.themes.Soft(), title="🧠 Smart Research Agent Suite") as demo:
+    gr.Markdown("## 🧠 AI Research Assistant")
+    gr.Markdown("Type any query, and our brain agent will route it intelligently!")
+
+    with gr.Row():
+        query_input = gr.Textbox(label="Enter your query", placeholder="e.g. Analyze stock trends for Tesla")
+        query_button = gr.Button("Run Brain Agent")
+
+    brain_output = gr.Textbox(label="Smart Agent Response")
+
+    query_button.click(fn=handle_query, inputs=query_input, outputs=brain_output)
+
+    gr.Markdown("## 🔍 Try agents individually")
+    with gr.Tabs():
+        with gr.Tab("🧮 Calculation"):
+            calc_input = gr.Textbox(label="Math Problem")
+            calc_output = gr.Textbox(label="Result")
+            gr.Button("Calculate").click(fn=calc_tab_fn, inputs=calc_input, outputs=calc_output)
+
+        with gr.Tab("📊 Presentation"):
+            pres_input = gr.Textbox(label="Presentation Topic")
+            pres_output = gr.Textbox(label="Slide Content")
+            gr.Button("Generate Slides").click(fn=pres_tab_fn, inputs=pres_input, outputs=pres_output)
+
+        with gr.Tab("💰 Finance"):
+            fin_input = gr.Textbox(label="Finance Query")
+            fin_output = gr.Textbox(label="Finance Summary")
+            gr.Button("Get Finance Data").click(fn=fin_tab_fn, inputs=fin_input, outputs=fin_output)
+
+        with gr.Tab("📝 Summarization"):
+            sum_input = gr.Textbox(label="Summarize Topic")
+            sum_output = gr.Textbox(label="Summary")
+            gr.Button("Summarize").click(fn=sum_tab_fn, inputs=sum_input, outputs=sum_output)
+
+demo.launch()
