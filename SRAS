@@ -1,0 +1,531 @@
+!git clone https://github.com/traversaal-ai/AgentPro.git
+
+%cd AgentPro
+!pip install -e .
+
+!pip install openai requests scipy
+
+import os
+os.environ["OPENAI_API_KEY"] = "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"  # Or set it via Streamlit secrets
+
+
+Create Project Folder Structure
+
+import os
+
+# Step 1: Create project folder and subfolders
+os.makedirs("sras/ui", exist_ok=True)
+
+# Step 2: Create empty __init__.py so Python treats 'ui' as a module
+with open("sras/ui/__init__.py", "w") as f:
+    f.write("")
+
+import os
+
+# Set your Hugging Face API key here for Colab testing
+os.environ["sras-api"] = "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"
+
+
+Tools
+
+User Query Router
+
+import io
+import json
+import contextlib
+from openai import OpenAI
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import (
+    CalculateTool,
+    SlideGenerationTool,
+    YFinanceTool,
+    QuickInternetTool,
+    AresInternetTool
+)
+
+# ✅ Initialize OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# ✅ Classifier using LLM
+def classify_query(query):
+    prompt = f"""
+You are a classifier that routes user queries to the right research tool.
+
+Classify this query into one of the following tasks:
+- calculation
+- presentation
+- finance
+- summarization
+
+Only return one word from the list.
+
+Query: {query}
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    task = response.choices[0].message.content.strip().lower()
+    return {"task": task, "query": query}
+
+# ✅ ReAct explanation prompt
+ROUTER_PROMPT = """
+You are a router agent using ReAct pattern. Explain clearly your reasoning for routing the task.
+Then finalize by stating the routing outcome.
+
+Format:
+Thought: explain how you identified the task type
+Final Answer: task classification result
+"""
+
+# ✅ Tool registry (for fallback if needed)
+ALL_TOOLS = {
+    "calculation": [CalculateTool()],
+    "presentation": [SlideGenerationTool()],
+    "finance": [YFinanceTool()],
+    "summarization": [QuickInternetTool(), AresInternetTool()]
+}
+
+# ✅ Main block
+if __name__ == "__main__":
+    print("\n🧠 Smart Router Agent Active")
+    user_query = input("\n📝 Enter your research query: ")
+
+    # 🧠 Use LLM to classify user query
+    extracted_intent = classify_query(user_query)
+    task_type = extracted_intent["task"]
+
+    # 📌 Dynamically assign based on task type
+    extracted_intent_calculation = None
+    extracted_intent_presentation = None
+    extracted_intent_finance = None
+    extracted_intent_summary = None
+
+    if task_type == "calculation":
+        extracted_intent_calculation = extracted_intent
+        print("\n✅ Intent saved in variable: extracted_intent_calculation")
+    elif task_type == "presentation":
+        extracted_intent_presentation = extracted_intent
+        print("\n✅ Intent saved in variable: extracted_intent_presentation")
+    elif task_type == "finance":
+        extracted_intent_finance = extracted_intent
+        print("\n✅ Intent saved in variable: extracted_intent_finance")
+    elif task_type == "summarization":
+        extracted_intent_summary = extracted_intent
+        print("\n✅ Intent saved in variable: extracted_intent_summary")
+    else:
+        print(f"\n⚠️ Unknown task type: '{task_type}' — intent not assigned.")
+
+        # ReAct agent-style reasoning
+        router_agent = ReactAgent(
+            tools=[],
+            model=create_model(provider="openai"),
+            custom_system_prompt=ROUTER_PROMPT
+        )
+
+        explain_prompt = f"""
+Question: {user_query}
+
+Now classify this query into one of the following:
+- calculation
+- presentation
+- finance
+- summarization
+
+You already determined it is: {task_type}
+
+Now respond in the following format:
+
+Thought: explain how you identified the task type
+Final Answer: {task_type}
+""".strip()
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            explanation = router_agent.run(explain_prompt)
+
+        print("\n🧠 ReAct Router Thought:")
+        print(explanation.final_answer if hasattr(explanation, "final_answer") else buffer.getvalue())
+
+        print("\n✅ Intent classification complete. No file saved (as per updated requirement).")
+
+
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import CalculateTool
+
+# 🧠 ReAct-style system prompt for math tasks
+CALCULATION_PROMPT = """
+You are a smart calculation assistant. Use the ReAct method:
+1. Think through the math problem step-by-step.
+2. Use the Calculator tool when computation is needed.
+3. Stop when you're confident with the final result.
+
+Only use CalculatorTool for calculations.
+
+Format:
+Thought: your reasoning
+Action: {"action_type": "calculate", "input": "math expression"}
+OR
+Final Answer: your final result
+"""
+
+# ✅ Main function to be called by orchestrator
+def run_calculation_agent(extracted_intent_calculation):
+    if not extracted_intent_calculation:
+        return "❌ No intent passed to calculation agent."
+
+    if extracted_intent_calculation.get("task") != "calculation":
+        return "ℹ️ Skipping Calculation Agent — task is not 'calculation'."
+
+    query = extracted_intent_calculation.get("query")
+    if not query:
+        return "❌ No query content found in extracted intent."
+
+    # 🧠 Create ReAct Agent with calculator tool
+    agent = ReactAgent(
+        tools=[CalculateTool()],
+        model=create_model(provider="openai"),
+        custom_system_prompt=CALCULATION_PROMPT
+    )
+
+    # 🧠 Run the agent on the input query
+    result = agent.run(query)
+
+    # ✅ Return final answer
+    return result.final_answer if hasattr(result, "final_answer") else "❌ No final answer found."
+
+
+# ✅ Optional: CLI test (only if file is run directly)
+if __name__ == "__main__":
+    print("\n🧠 Running Calculation Agent...")
+
+    # ❗Make sure this variable is populated by router before testing here
+    try:
+        print("\n🧮 Final Answer:")
+        print(run_calculation_agent(extracted_intent_calculation))
+    except NameError:
+        print("❌ 'extracted_intent_calculation' not defined. Run from orchestrator or pass valid input.")
+
+
+Presentation agent
+
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import SlideGenerationTool
+
+# 🧠 ReAct-style prompt for slide generation
+PRESENTATION_PROMPT = """
+You are a presentation assistant that creates high-quality slide content.
+Use the ReAct pattern:
+1. Think through the topic and structure it logically.
+2. Use SlideGenerationTool to generate slide content.
+3. Finalize when all major points are covered.
+
+Use this format:
+Thought: reasoning about slide structure
+Action: {"action_type": "presentation", "input": "slide topic or content"}
+OR
+Final Answer: structured slide content
+"""
+
+# ✅ Main function to be called by orchestrator
+def run_presentation_agent(extracted_intent_presentation):
+    if not extracted_intent_presentation:
+        return "❌ No intent passed to presentation agent."
+
+    if extracted_intent_presentation.get("task") != "presentation":
+        return "⚠️ Query is not for presentation."
+
+    query = extracted_intent_presentation.get("query")
+    if not query:
+        return "❌ No query content found in extracted intent."
+
+    # 🧠 Create ReAct Agent with slide generation tool
+    agent = ReactAgent(
+        tools=[SlideGenerationTool()],
+        model=create_model(provider="openai"),
+        custom_system_prompt=PRESENTATION_PROMPT
+    )
+
+    # 🧠 Run the agent on the input query
+    result = agent.run(query)
+
+    # ✅ Return final slide content
+    return result.final_answer if hasattr(result, "final_answer") else "❌ No final answer returned by agent."
+presentation_output = run_presentation_agent(extracted_intent_presentation)
+print("\n📊 Final Slides Content:")
+print(presentation_output)
+
+
+Summerization agent
+
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import QuickInternetTool, AresInternetTool
+
+# 🧠 ReAct-style prompt for summarization
+SUMMARIZATION_PROMPT = """
+You are a summarization expert. Follow the ReAct pattern:
+1. Think through what the user needs summarized.
+2. Use QuickInternetTool or AresInternetTool to gather relevant data.
+3. Produce a concise and clear summary when confident.
+
+Use this format:
+Thought: your reasoning
+Action: {"action_type": "internet", "input": "query or topic"}
+OR
+Final Answer: your summary response
+"""
+
+# ✅ Summarization agent function
+def run_summarization_agent(extracted_intent_summarization):
+    if not extracted_intent_summarization:
+        return "❌ No intent passed to summarization agent."
+
+    if extracted_intent_summarization.get("task") != "summarization":
+        return "⚠️ Skipping Summarization Agent — task is not 'summarization'."
+
+    query = extracted_intent_summarization.get("query")
+    if not query:
+        return "❌ No query content found in extracted intent."
+
+    # 🧠 Create agent with both internet tools
+    agent = ReactAgent(
+        tools=[QuickInternetTool(), AresInternetTool()],
+        model=create_model(provider="openai"),
+        custom_system_prompt=SUMMARIZATION_PROMPT
+    )
+
+    # 🧠 Run agent with input query
+    result = agent.run(query)
+
+    # ✅ Return final summary
+    return result.final_answer if hasattr(result, "final_answer") else "❌ No final answer."
+
+
+# ✅ Optional: CLI test mode
+if __name__ == "__main__":
+    print("\n📚 Running Summarization Agent...")
+
+    try:
+        summary = run_summarization_agent(extracted_intent_summary)
+        print("\n📝 Summary Output:")
+        print(summary)
+    except NameError:
+        print("❌ 'extracted_intent_summarization' not defined. Run from orchestrator or pass valid input.")
+
+
+Finances Agent
+
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+from agentpro.tools import YFinanceTool
+
+# 🧠 ReAct-style system prompt for finance
+FINANCE_PROMPT = """
+You are a financial research assistant. Use the ReAct method:
+1. Break down the user's query and decide which financial data is needed.
+2. Use the YFinanceTool to look up financial info.
+3. Summarize the result clearly in human-friendly language.
+
+Only use YFinanceTool for actions.
+
+Format:
+Thought: describe reasoning
+Action: {"action_type": "yfinance", "input": "ticker symbol or query"}
+OR
+Final Answer: your complete financial insight
+"""
+
+# ✅ Main function to be called by orchestrator
+def run_finance_agent(extracted_intent_finance):
+    if not extracted_intent_finance:
+        return "❌ No intent passed to finance agent."
+
+    if extracted_intent_finance.get("task") != "finance":
+        return "ℹ️ Skipping Finance Agent — task is not 'finance'."
+
+    query = extracted_intent_finance.get("query")
+    if not query:
+        return "❌ No query content found in extracted intent."
+
+    # 🧠 Create ReAct Agent with YFinance tool
+    agent = ReactAgent(
+        tools=[YFinanceTool()],
+        model=create_model(provider="openai"),
+        custom_system_prompt=FINANCE_PROMPT
+    )
+
+    # 🧠 Run the agent on the input query
+    result = agent.run(query)
+
+    # ✅ Return final financial insight
+    return result.final_answer if hasattr(result, "final_answer") else "❌ No final answer returned."
+
+
+# ✅ Optional: CLI test (only runs if file is executed directly)
+if __name__ == "__main__":
+    print("\n💸 Running Finance Agent...")
+
+    try:
+        print("\n📊 Final Answer:")
+        print(run_finance_agent(extracted_intent_finance))
+    except NameError:
+        print("❌ 'extracted_intent_finance' not defined. Run from orchestrator or pass valid input.")
+
+
+BRAINS Agent - initial code,, the new one is in next cell
+
+from agentpro.react_agent import ReactAgent
+from agentpro.model import create_model
+
+#from router_agent import classify_query
+#from presentation_agent import run_presentation_agent
+#from calculate_agent import run_calculation_agent
+#from finance_agent import run_finance_agent
+#from summarization_agent import run_summarization_agent
+
+# 🧠 ReAct prompt for brain decision
+BRAIN_PROMPT = """
+You are a smart brain agent that decides which specific research agent should be triggered based on a user query type.
+You must reason and then respond with the exact agent to invoke:
+- calculation
+- presentation
+- finance
+- summarization
+
+Format:
+Thought: explain the decision
+Final Answer: name of the agent to use
+"""
+
+if __name__ == "__main__":
+    print("\n🧠 Smart Brain Agent Active")
+
+    # Step 1: Get user query
+    user_query = input("\n📝 Please enter your research query: ")
+
+    # Step 2: Classify task using router logic
+    extracted_intent = classify_query(user_query)  # returns {"query": ..., "task": ...}
+    task_type = extracted_intent["task"]
+
+    print(f"\n🔎 Query classified as: {task_type}")
+
+    # Step 3: Let the brain agent reason through the decision
+    decision_prompt = f"""
+Question: {extracted_intent['query']}
+
+Query Type: {task_type}
+
+Now decide the correct agent.
+"""
+
+    brain_agent = ReactAgent(
+        tools=[],
+        model=create_model(provider="openai"),
+        custom_system_prompt=BRAIN_PROMPT
+    )
+
+    result = brain_agent.run(decision_prompt)
+    decision = result.final_answer.strip().lower()
+
+    print("\n🧠 Brain Decision:")
+    print(decision)
+
+    # Step 4: Trigger the corresponding agent
+    if decision == "calculation":
+        print("\n🚀 Launching Calculation Agent...")
+        answer = run_calculation_agent(extracted_intent)
+        print("\n🧮 Final Answer:")
+        print(answer)
+
+    elif decision == "presentation":
+        print("\n🚀 Launching Presentation Agent...")
+        answer = run_presentation_agent(extracted_intent)
+        print("\n🎥 Presentation Slides:")
+        print(answer)
+
+    elif decision == "finance":
+        print("\n🚀 Launching Finance Agent...")
+        answer = run_finance_agent(extracted_intent)
+        print("\n💰 Finance Info:")
+        print(answer)
+
+    elif decision == "summarization":
+        print("\n🚀 Launching Summarization Agent...")
+        answer = run_summarization_agent(extracted_intent)
+        print("\n📝 Summary:")
+        print(answer)
+
+    else:
+        print(f"❌ Unknown agent: '{decision}' — no action taken.")
+
+
+!pip install gradio
+
+
+import gradio as gr
+#from brain_agent import run_calculation_agent, run_presentation_agent, run_finance_agent, run_summarization_agent
+#from brain_agent import classify_query  # If inline, paste the function here instead
+
+def handle_query(user_query):
+    extracted = classify_query(user_query)
+    task = extracted["task"]
+
+    if task == "calculation":
+        output = run_calculation_agent(extracted)
+    elif task == "presentation":
+        output = run_presentation_agent(extracted)
+    elif task == "finance":
+        output = run_finance_agent(extracted)
+    elif task == "summarization":
+        output = run_summarization_agent(extracted)
+    else:
+        output = "❌ Could not classify your query properly."
+
+    return f"🧠 Task Type: {task}\n\n✅ Output:\n{output}"
+
+# Individual agent tabs
+def calc_tab_fn(q): return run_calculation_agent({"task": "calculation", "query": q})
+def pres_tab_fn(q): return run_presentation_agent({"task": "presentation", "query": q})
+def fin_tab_fn(q): return run_finance_agent({"task": "finance", "query": q})
+def sum_tab_fn(q): return run_summarization_agent({"task": "summarization", "query": q})
+
+with gr.Blocks(theme=gr.themes.Soft(), title="🧠 Smart Research Agent Suite") as demo:
+    gr.Markdown("## 🧠 AI Research Assistant")
+    gr.Markdown("Type any query, and our brain agent will route it intelligently!")
+
+    with gr.Row():
+        query_input = gr.Textbox(label="Enter your query", placeholder="e.g. Analyze stock trends for Tesla")
+        query_button = gr.Button("Run Brain Agent")
+
+    brain_output = gr.Textbox(label="Smart Agent Response")
+
+    query_button.click(fn=handle_query, inputs=query_input, outputs=brain_output)
+
+    gr.Markdown("## 🔍 Try agents individually")
+    with gr.Tabs():
+        with gr.Tab("🧮 Calculation"):
+            calc_input = gr.Textbox(label="Math Problem")
+            calc_output = gr.Textbox(label="Result")
+            gr.Button("Calculate").click(fn=calc_tab_fn, inputs=calc_input, outputs=calc_output)
+
+        with gr.Tab("📊 Presentation"):
+            pres_input = gr.Textbox(label="Presentation Topic")
+            pres_output = gr.Textbox(label="Slide Content")
+            gr.Button("Generate Slides").click(fn=pres_tab_fn, inputs=pres_input, outputs=pres_output)
+
+        with gr.Tab("💰 Finance"):
+            fin_input = gr.Textbox(label="Finance Query")
+            fin_output = gr.Textbox(label="Finance Summary")
+            gr.Button("Get Finance Data").click(fn=fin_tab_fn, inputs=fin_input, outputs=fin_output)
+
+        with gr.Tab("📝 Summarization"):
+            sum_input = gr.Textbox(label="Summarize Topic")
+            sum_output = gr.Textbox(label="Summary")
+            gr.Button("Summarize").click(fn=sum_tab_fn, inputs=sum_input, outputs=sum_output)
+
+demo.launch()
+
