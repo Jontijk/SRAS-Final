@@ -25,7 +25,70 @@ from google.colab import userdata
 userdata.get('sras-api')
 
 
-Tools
+Making Customised TextRewriterTool.py file
+
+# ✅ Step 1: Ensure folder exists
+!mkdir -p /content/AgentPro/agentpro/tools
+
+
+%%writefile /content/AgentPro/agentpro/tools/text_rewriter_tool.py
+from .base_tool import Tool
+from openai import OpenAI
+from typing import Optional
+from pydantic import PrivateAttr
+import os
+
+class TextRewriterTool(Tool):
+    name: str = "Text Rewriter"
+    description: str = "Rewrites text to make it clearer and more professional."
+    action_type: str = "text_rewriting"
+    input_format: str = "A plain string of text to rewrite professionally."
+
+    # ✅ Declare client as a private attribute
+    _client: Optional[OpenAI] = PrivateAttr()
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    def run(self, query: str) -> str:
+        prompt = (
+            "Please rewrite the following text to make it clearer and more professional:\n\n"
+            f"{query}"
+        )
+
+        response = self._client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+        )
+        return response.choices[0].message.content.strip()
+
+
+
+with open("/content/AgentPro/agentpro/tools/__init__.py", "a") as f:
+    f.write("\nfrom .text_rewriter_tool import TextRewriterTool\n")
+
+
+from google.colab import userdata
+import os
+
+api_key = userdata.get("OPENAI_API_KEY")
+
+if api_key:
+    os.environ["OPENAI_API_KEY"] = api_key
+else:
+    raise ValueError("❌ API key not found in userdata. Set it manually.")
+
+
+import sys
+sys.path.append("/content/AgentPro")
+
+from agentpro.tools import TextRewriterTool
+
+tool = TextRewriterTool()
+print(tool.run("pls fix this bad grammar and make it professional."))
+
 
 User Query Router
 
@@ -62,6 +125,7 @@ Classify this query into one of the following tasks:
 - presentation
 - finance
 - summarization
+- text rewriting
 
 Only return one word from the list.
 
@@ -121,7 +185,7 @@ if __name__ == "__main__":
     elif task_type == "summarization":
         extracted_intent_summary = extracted_intent
         print("\n✅ Intent saved in variable: extracted_intent_summary")
-    elif task_type == "text_rewriting":
+    elif task_type == "text rewriting":
         extracted_intent_rewriter = extracted_intent
         print("\n✅ Intent saved in variable: extracted_intent_rewriter")
     else:
@@ -142,6 +206,7 @@ Now classify this query into one of the following:
 - presentation
 - finance
 - summarization
+- text rewriting
 
 You already determined it is: {task_type}
 
@@ -412,8 +477,8 @@ def run_text_rewriter_agent(extracted_intent_rewriter):
     if not extracted_intent_rewriter:
         return "❌ No intent passed to text rewriter agent."
 
-    if extracted_intent_rewriter.get("task") != "text_rewriting":
-        return "⚠️ Skipping Text Rewriter Agent — task is not 'text_rewriting'."
+    if extracted_intent_rewriter.get("task") != "text rewriting":
+        return "⚠️ Skipping Text Rewriter Agent — task is not 'text rewriting'."
 
     query = extracted_intent_rewriter.get("query")
     if not query:
@@ -456,6 +521,7 @@ from agentpro.model import create_model
 #from finance_agent import run_finance_agent
 #from summarization_agent import run_summarization_agent
 
+
 # 🧠 ReAct prompt for brain decision
 BRAIN_PROMPT = """
 You are a smart brain agent that decides which specific research agent should be triggered based on a user query type.
@@ -464,6 +530,7 @@ You must reason and then respond with the exact agent to invoke:
 - presentation
 - finance
 - summarization
+- text rewriting
 
 Format:
 Thought: explain the decision
@@ -528,11 +595,11 @@ Now decide the correct agent.
         print("\n📝 Summary:")
         print(answer)
 
-    elif decision == "rewriting":
+    elif decision == "text rewriting":
         print("\n🚀 Launching Text Rewriter Agent...")
         answer = run_text_rewriter_agent(extracted_intent)
         print("\n📝 Rephrased:")
-        print(answer)   
+        print(answer)
     else:
         print(f"❌ Unknown agent: '{decision}' — no action taken.")
 
@@ -544,7 +611,7 @@ from google.colab import drive
 drive.mount('/content/drive')
 
 import gradio as gr
-#from brain_agent import run_calculation_agent, run_presentation_agent, run_finance_agent, run_summarization_agent
+#from brain_agent import run_calculation_agent, run_presentation_agent, run_finance_agent, run_summarization_agent, run_text_rewriter_agent
 #from brain_agent import classify_query  # If inline, paste the function here instead
 
 def handle_query(user_query):
@@ -559,6 +626,8 @@ def handle_query(user_query):
         output = run_finance_agent(extracted)
     elif task == "summarization":
         output = run_summarization_agent(extracted)
+    elif task == "text rewriting":
+        output = run_text_rewriter_agent(extracted_intent)
     else:
         output = "❌ Could not classify your query properly."
 
@@ -569,6 +638,7 @@ def calc_tab_fn(q): return run_calculation_agent({"task": "calculation", "query"
 def pres_tab_fn(q): return run_presentation_agent({"task": "presentation", "query": q})
 def fin_tab_fn(q): return run_finance_agent({"task": "finance", "query": q})
 def sum_tab_fn(q): return run_summarization_agent({"task": "summarization", "query": q})
+def rew_tab_fn(q): return run_text_rewriter_agent({"task": "text rewriting", "query": q})
 
 with gr.Blocks(theme=gr.themes.Soft(), title="🧠 Smart Research Agent Suite") as demo:
     gr.Markdown("## 🧠 AI Research Assistant")
@@ -603,5 +673,10 @@ with gr.Blocks(theme=gr.themes.Soft(), title="🧠 Smart Research Agent Suite") 
             sum_input = gr.Textbox(label="Summarize Topic")
             sum_output = gr.Textbox(label="Summary")
             gr.Button("Summarize").click(fn=sum_tab_fn, inputs=sum_input, outputs=sum_output)
+
+        with gr.Tab("📝 Rewriting"):
+            sum_input = gr.Textbox(label="Rewriting Query")
+            sum_output = gr.Textbox(label="Rewritten Output")
+            gr.Button("Rewrite").click(fn=rew_tab_fn, inputs=sum_input, outputs=sum_output)            
 
 demo.launch()
