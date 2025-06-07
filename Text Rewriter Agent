@@ -20,8 +20,8 @@ def run_text_rewriter_agent(extracted_intent_rewriter):
     if not extracted_intent_rewriter:
         return "❌ No intent passed to text rewriter agent."
 
-    if extracted_intent_rewriter.get("task") != "text_rewriting":
-        return "⚠️ Skipping Text Rewriter Agent — task is not 'text_rewriting'."
+    if extracted_intent_rewriter.get("task") != "text rewriting":
+        return "⚠️ Skipping Text Rewriter Agent — task is not 'text rewriting'."
 
     query = extracted_intent_rewriter.get("query")
     if not query:
