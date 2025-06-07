@@ -7,6 +7,7 @@ from agentpro.model import create_model
 #from finance_agent import run_finance_agent
 #from summarization_agent import run_summarization_agent
 
+
 # 🧠 ReAct prompt for brain decision
 BRAIN_PROMPT = """
 You are a smart brain agent that decides which specific research agent should be triggered based on a user query type.
@@ -15,6 +16,7 @@ You must reason and then respond with the exact agent to invoke:
 - presentation
 - finance
 - summarization
+- text rewriting
 
 Format:
 Thought: explain the decision
@@ -79,5 +81,10 @@ Now decide the correct agent.
         print("\n📝 Summary:")
         print(answer)
 
+    elif decision == "text rewriting":
+        print("\n🚀 Launching Text Rewriter Agent...")
+        answer = run_text_rewriter_agent(extracted_intent)
+        print("\n📝 Rephrased:")
+        print(answer)
     else:
         print(f"❌ Unknown agent: '{decision}' — no action taken.")
