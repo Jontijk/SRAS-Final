@@ -1,5 +1,7 @@
 openai
-youtube_transcript_api
+agentpro
+google-api-python-client
+gradio
 duckduckgo-search
 requests
 python-pptx
@@ -9,9 +11,6 @@ pandas
 numpy
 matplotlib
 seaborn
-openpyxl
-pyarrow
-matplotlib
 scikit-learn
 seaborn
 yfinance
